@@ -83,6 +83,10 @@ socket.on('gameStarted', ({ hand, centerCard, players }) => {
   renderHand(hand);
 });
 
+socket.on('updateMyHand', (newHand) => {
+  renderHand(newHand);
+});
+
 socket.on('gameUpdate', ({ centerCard, players, lastAction }) => {
   renderCenterCard(centerCard);
   document.getElementById('gameStatus').textContent = lastAction;
@@ -99,6 +103,7 @@ function renderCenterCard(card) {
 function renderHand(hand) {
   const handEl = document.getElementById('myHand');
   handEl.innerHTML = '';
+
   hand.forEach(card => {
     const cardDiv = document.createElement('div');
     cardDiv.className = 'tabata-card';
@@ -106,9 +111,18 @@ function renderHand(hand) {
       <div class="top-answer">${card.topAnswer}</div>
       <div class="equation-oval">${card.eq}</div>
     `;
-    cardDiv.onclick = () => {
+
+    let actionFired = false;
+    const handlePlay = (e) => {
+      e.preventDefault();
+      if (actionFired) return;
+      actionFired = true;
       socket.emit('playCard', { roomId: currentRoomId, cardId: card.id });
     };
+
+    cardDiv.addEventListener('touchend', handlePlay, false);
+    cardDiv.addEventListener('click', handlePlay, false);
+
     handEl.appendChild(cardDiv);
   });
 }
