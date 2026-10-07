@@ -85,7 +85,7 @@ io.on('connection', (socket) => {
     if (!player) return;
 
     if (player.penalized) {
-      return socket.emit('errorMsg', 'Айыппұл! Сіз бұл раундты өткізесіз / Штраф! Вы пропускаете этот раунд');
+      return socket.emit('errorMsg', 'Айыппұл! Бұл раундты өткізесіз / Штраф! Вы пропускаете раунд');
     }
 
     const cardIndex = player.hand.findIndex(c => c.id === cardId);
@@ -94,16 +94,24 @@ io.on('connection', (socket) => {
     const cardToPlay = player.hand[cardIndex];
     const centerCard = room.centerCard;
 
-    // Проверка совпадения ответа карты с корнями центральной карты
-    const topAnsNum = parseFloat(cardToPlay.topAnswer.replace(',', '.'));
-    const isCorrect = centerCard.roots.some(r => Math.abs(r - topAnsNum) < 0.05);
+    // Нормализация ответа с карты (заменяем запятую на точку)
+    const cardAnswerClean = String(cardToPlay.topAnswer).replace(',', '.').trim();
+    const playedNum = parseFloat(cardAnswerClean);
+
+    // Точная проверка совпадения с корнями центральной карты
+    const isCorrect = centerCard.roots.some(root => {
+      return Math.abs(root - playedNum) < 0.01 || String(root) === cardAnswerClean;
+    });
 
     if (isCorrect) {
       player.hand.splice(cardIndex, 1);
       room.centerCard = cardToPlay;
 
-      // Снимаем штрафы со всех игроков для следующего хода
+      // Снимаем штрафы со всех игроков
       room.players.forEach(p => p.penalized = false);
+
+      // Отправляем обновленную руку самому игроку
+      socket.emit('updateMyHand', player.hand);
 
       io.to(roomId).emit('gameUpdate', {
         centerCard: room.centerCard,
@@ -115,13 +123,12 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('gameOver', { winner: player.name });
       }
     } else {
-      // Игрок сделал ошибочный ход -> Штраф
       player.penalized = true;
       socket.emit('penalized', { message: 'Қате жүріс! Айыппұл салынды. / Неверный ход! Вы получили штраф.' });
       io.to(roomId).emit('gameUpdate', {
         centerCard: room.centerCard,
         players: room.players.map(p => ({ id: p.id, name: p.name, cardsCount: p.hand.length })),
-        lastAction: `${player.name} қате жүрді және айыппұл алды! / сделал ошибку и получил штраф!`
+        lastAction: `${player.name} қате жүрді! / сделал ошибку!`
       });
     }
   });
